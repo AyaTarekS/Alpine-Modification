@@ -45,7 +45,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-
+    // Load configuration FIRST
+    Config cfg;
+    load_config(argv[1], &cfg);
 
     // Initialize page table with proper error checking
     pageTableLevel *root = create_page_table_level(cfg.pageTableSize);
@@ -57,6 +59,7 @@ int main(int argc, char *argv[]) {
     // Initialize replacement algorithm
     replace_t replace;
     int buffer_size = (cfg.replaceAlgo == FIFO) ? cfg.FIFO_buffer_size : cfg.LRU_buffer_size;
+    replacement_init(&replace, cfg.replaceAlgo, buffer_size);
 
     // Run tests
     run_comprehensive_tests(&cfg, root, &replace);
@@ -67,4 +70,3 @@ int main(int argc, char *argv[]) {
     
     return 0;
 }
-
