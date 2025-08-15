@@ -1,0 +1,25 @@
+# Compiler and flags
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c11
+
+# Automatically find all .c files in the current directory
+SRC = $(wildcard *.c)
+OBJ = $(SRC:.c=.o)
+
+# Output executable name
+TARGET = paging_sim
+
+# Default rule
+all: $(TARGET)
+
+# Linking
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) $(OBJ) -o $(TARGET)
+
+# Compiling each .c to .o
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Clean build artifacts
+clean:
+	rm -f $(OBJ) $(TARGET)
