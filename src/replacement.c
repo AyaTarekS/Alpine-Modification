@@ -84,30 +84,3 @@ void page_access(replace_t *replace, uint64_t page_number) {
 
     }
 }
-
-
-int main() {
-    replace_t r_fifo, r_lru;
-
-    replacement_init(&r_fifo, FIFO, 3);
-    replacement_init(&r_lru, LRU, 3);
-
-    printf("=== FIFO Test ===\n");
-    page_access(&r_fifo, 1);
-    page_access(&r_fifo, 2);
-    page_access(&r_fifo, 3);
-    page_access(&r_fifo, 4); 
-
-    printf("\n=== LRU Test ===\n");
-    page_access(&r_lru, 1);
-    page_access(&r_lru, 2);
-    page_access(&r_lru, 3);
-    page_access(&r_lru, 1); 
-    page_access(&r_lru, 4); 
-
-    replacement_free(&r_fifo);
-    replacement_free(&r_lru);
-    return 0;
-}
-
-
