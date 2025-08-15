@@ -37,10 +37,9 @@ int main(int argc, char *argv[]) {
 
     // Simulate translations with more reasonable addresses
     uint64_t virtual_addresses[] = {
-        0x1000,  // Smaller addresses for 32-bit systems
-        0x2000,
-        0x3000,
-        0x4000
+        0x0,       // Minimum address
+        0xFFFFF,   // Larger address
+        0x1234,    // Non-page-aligned address
     };
     int count = sizeof(virtual_addresses) / sizeof(virtual_addresses[0]);
 
@@ -57,3 +56,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+
