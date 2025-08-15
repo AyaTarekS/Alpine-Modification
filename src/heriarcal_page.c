@@ -48,63 +48,45 @@ void free_page_table_level(pageTableLevel *level, int size) {
 }
 
 void address_translation(uint64_t virtual_address, pageTableLevel *page_table, Config *cfg) {
-    // Validate inputs
+    // Input validation
     if (!page_table || !cfg) {
         fprintf(stderr, "Error: NULL pointer passed\n");
         return;
     }
 
-    // Calculate bits for page offset
-    int pageOffsetBits = (int)log2(cfg->pageSize);
-    int remainingBits = cfg->addressBits - pageOffsetBits;
+    const int pageOffsetBits = (int)log2(cfg->pageSize);
+    const int totalBits = cfg->addressBits;
     
-    // Verify configuration
-    if (pageOffsetBits <= 0 || remainingBits <= 0 || 
-        cfg->numberOfLevels <= 0 || cfg->pageTableSize <= 0) {
-        fprintf(stderr, "Error: Invalid configuration\n");
-        return;
-    }
-
-    // Calculate bits per level (distribute evenly)
+    // Calculate dynamic bits per level
+    int remainingBits = totalBits - pageOffsetBits;
     int bitsPerLevel = remainingBits / cfg->numberOfLevels;
     int extraBits = remainingBits % cfg->numberOfLevels;
-    
+
     pageTableLevel *current = page_table;
-    uint64_t mask = (1ULL << remainingBits) - 1;
-    uint64_t pageNumber = (virtual_address >> pageOffsetBits) & mask;
+    uint64_t addr = virtual_address >> pageOffsetBits;  // Remove offset
 
     for (int level = 0; level < cfg->numberOfLevels; level++) {
-        // Distribute extra bits to earlier levels
         int levelBits = bitsPerLevel + (level < extraBits ? 1 : 0);
-        int shift = remainingBits - levelBits;
-        
         uint64_t indexMask = (1ULL << levelBits) - 1;
-        int index = (pageNumber >> shift) & indexMask;
+        int index = (addr >> (remainingBits - levelBits)) & indexMask;
 
-        // Validate index
+        // Safety check
         if (index >= cfg->pageTableSize) {
-            fprintf(stderr, "Error: Index %d exceeds table size %d at level %d\n",
-                   index, cfg->pageTableSize, level);
+            fprintf(stderr, "Error: VA 0x%lx requires table size ≥%d (current %d)\n",
+                   virtual_address, index+1, cfg->pageTableSize);
             return;
         }
 
-        // Allocate next level if needed
         if (!current->next[index]) {
             current->next[index] = create_page_table_level(cfg->pageTableSize);
-            if (!current->next[index]) {
-                fprintf(stderr, "Error: Allocation failed at level %d\n", level);
-                return;
-            }
         }
-
         current = current->next[index];
         remainingBits -= levelBits;
     }
 
-    // Store frame mapping
-    int frameIndex = pageNumber % cfg->pageTableSize;
-    current->frames[frameIndex] = pageNumber;
+    int frameIndex = addr % cfg->pageTableSize;
+    current->frames[frameIndex] = addr;  // Store page number as frame number
     
-    printf("Virtual Address: 0x%lx -> Page: %lu -> Frame: %d\n",
-           virtual_address, pageNumber, current->frames[frameIndex]);
+    printf("Virtual Address: 0x%lx → Page: %lu → Frame: %d\n",
+           virtual_address, addr, current->frames[frameIndex]);
 }
