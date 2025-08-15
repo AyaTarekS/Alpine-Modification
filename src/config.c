@@ -43,19 +43,6 @@ void load_config(const char* filename, Config* configuration) {
     fclose(fp);
 }
 
-int main() {
-    Config cfg;
-    load_config("configuration.cfg", &cfg);
-
-    printf("Page Size: %d\n", cfg.pageSize);
-    printf("Num Levels: %d\n", cfg.numberOfLevels);
-    printf("Algorithm: %s\n", (cfg.replaceAlgo == FIFO) ? "FIFO" : "LRU");
-    printf("FIFO Buffer Size: %d\n", cfg.FIFO_buffer_size);
-    printf("LRU Buffer Size: %d\n", cfg.LRU_buffer_size);
-    printf("Address Bits: %d\n", cfg.addressBits);
-    printf("Page Table Size: %d\n", cfg.pageTableSize);
-    return 0;
-}
 
 
 
