@@ -81,13 +81,10 @@ void page_access(replace_t *replace, uint64_t page_number) {
 
         replace->frame_queue[victim_idx] = page_number;
         replace->last_access[victim_idx] = replace->timeCounter++;
-        printf("victim index: %llu\n" , victim_idx);
 
     }
-    printf("Page access: %llu\n", page_number);
 }
-#include "replacement.h"
-#include <stdio.h>
+
 
 int main() {
     replace_t r_fifo, r_lru;
@@ -112,4 +109,5 @@ int main() {
     replacement_free(&r_lru);
     return 0;
 }
+
 
