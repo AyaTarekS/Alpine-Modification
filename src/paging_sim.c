@@ -45,12 +45,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Load and validate configuration
-    Config cfg;
-    if(load_config(argv[1], &cfg) != 0) {
-        fprintf(stderr, "Failed to load config\n");
-        return 1;
-    }
+
 
     // Initialize page table with proper error checking
     pageTableLevel *root = create_page_table_level(cfg.pageTableSize);
@@ -62,11 +57,6 @@ int main(int argc, char *argv[]) {
     // Initialize replacement algorithm
     replace_t replace;
     int buffer_size = (cfg.replaceAlgo == FIFO) ? cfg.FIFO_buffer_size : cfg.LRU_buffer_size;
-    if(replacement_init(&replace, cfg.replaceAlgo, buffer_size) != 0) {
-        fprintf(stderr, "Failed to initialize replacement\n");
-        free_page_table_level(root, cfg.pageTableSize);
-        return 1;
-    }
 
     // Run tests
     run_comprehensive_tests(&cfg, root, &replace);
@@ -77,3 +67,4 @@ int main(int argc, char *argv[]) {
     
     return 0;
 }
+
