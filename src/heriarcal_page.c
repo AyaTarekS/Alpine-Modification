@@ -4,27 +4,29 @@
 #include <stdint.h>
 #include <math.h>
 #include <stdio.h>
+#include <assert.h>
+
 pageTableLevel *create_page_table_level(int size) {
     pageTableLevel *level = malloc(sizeof(pageTableLevel));
     if (!level) return NULL;
 
-    // Allocate child pointers (initialize to NULL)
+    // Initialize all members
     level->next = calloc(size, sizeof(pageTableLevel *));
     if (!level->next) {
         free(level);
         return NULL;
     }
 
-    // Allocate frame entries (initialize to -1 to mean "no frame assigned")
-    level->frames = malloc(size * sizeof(int));
+    level->frames = calloc(size, sizeof(int)); // Using calloc to initialize to 0
     if (!level->frames) {
         free(level->next);
         free(level);
         return NULL;
     }
 
+    // Initialize all frames to -1 (invalid)
     for (int i = 0; i < size; i++) {
-        level->frames[i] = -1; // -1 means empty
+        level->frames[i] = -1;
     }
 
     return level;
@@ -46,36 +48,71 @@ void free_page_table_level(pageTableLevel *level, int size) {
 }
 
 void address_translation(uint64_t virtual_address, pageTableLevel *root, Config *cfg) {
-    // Bits for page offset
+    // Validate inputs
+    if (!root || !cfg) {
+        fprintf(stderr, "Error: NULL pointer passed to address_translation\n");
+        return;
+    }
+
+    if (cfg->pageSize <= 0 || cfg->numberOfLevels <= 0 || cfg->addressBits <= 0) {
+        fprintf(stderr, "Error: Invalid configuration values\n");
+        return;
+    }
+
+    // Calculate bits for page offset
     int pageOffsetBits = (int)log2(cfg->pageSize);
-    // Bits per page table level
-    int bitsPerLevel = (cfg->addressBits - pageOffsetBits) / cfg->numberOfLevels;
+    if (pageOffsetBits <= 0 || pageOffsetBits >= cfg->addressBits) {
+        fprintf(stderr, "Error: Invalid pageOffsetBits calculation\n");
+        return;
+    }
+
+    // Calculate bits per level
+    int remainingBits = cfg->addressBits - pageOffsetBits;
+    int bitsPerLevel = remainingBits / cfg->numberOfLevels;
+    
+    if (bitsPerLevel <= 0) {
+        fprintf(stderr, "Error: Invalid bitsPerLevel calculation\n");
+        return;
+    }
 
     pageTableLevel *current = root;
 
-    // Go through each level of the page table
+    // Traverse each level of the page table
     for (int level = 0; level < cfg->numberOfLevels; level++) {
-        // Shift amount for current level
-        int shift = cfg->addressBits - pageOffsetBits - (bitsPerLevel * (level + 1));
-        // Mask to extract the index bits for this level
+        int shift = remainingBits - (bitsPerLevel * (level + 1));
         int indexMask = (1 << bitsPerLevel) - 1;
         int index = (virtual_address >> shift) & indexMask;
 
-        // Allocate next level if needed
-        if (current->next[index] == NULL) {
-            current->next[index] = malloc(sizeof(pageTableLevel));
-            memset(current->next[index], 0, sizeof(pageTableLevel));
+        // Verify index is within bounds
+        if (index < 0 || index >= cfg->pageTableSize) {
+            fprintf(stderr, "Error: Invalid index calculation at level %d\n", level);
+            return;
         }
 
-        // Move to the next level
+        // Allocate next level if needed
+        if (!current->next[index]) {
+            current->next[index] = create_page_table_level(cfg->pageTableSize);
+            if (!current->next[index]) {
+                fprintf(stderr, "Error: Failed to allocate page table level\n");
+                return;
+            }
+        }
+
         current = current->next[index];
     }
 
-    // Final step: simulate mapping to a frame number
-    // Here, we use the extracted index at the last level as the "frame number"
-    int pageNumber = (virtual_address >> pageOffsetBits) & ((1 << (cfg->addressBits - pageOffsetBits)) - 1);
-    current->frames[pageNumber % cfg->pageTableSize] = 1; // here we actually save the frame number
+    // Calculate frame number
+    int pageNumber = (virtual_address >> pageOffsetBits);
+    int frameIndex = pageNumber % cfg->pageTableSize;
+    
+    // Validate frame index
+    if (frameIndex < 0 || frameIndex >= cfg->pageTableSize) {
+        fprintf(stderr, "Error: Invalid frame index calculation\n");
+        return;
+    }
 
-    printf("Virtual Address: 0x%lx -> Frame: %d\n", virtual_address, pageNumber % cfg->pageTableSize);
+    // Assign frame (using pageNumber as the frame number for simulation)
+    current->frames[frameIndex] = pageNumber;
+    printf("Virtual Address: 0x%lx -> Page: %d -> Frame: %d\n", 
+           virtual_address, pageNumber, current->frames[frameIndex]);
 }
-
