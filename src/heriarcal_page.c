@@ -47,45 +47,44 @@ void free_page_table_level(pageTableLevel *level, int size) {
     free(level);
 }
 
-void address_translation(uint64_t virtual_address, pageTableLevel *root, Config *cfg) {
+void address_translation(uint64_t virtual_address, pageTableLevel *page_table, Config *cfg) {
     // Validate inputs
-    if (!root || !cfg) {
-        fprintf(stderr, "Error: NULL pointer passed to address_translation\n");
-        return;
-    }
-
-    if (cfg->pageSize <= 0 || cfg->numberOfLevels <= 0 || cfg->addressBits <= 0) {
-        fprintf(stderr, "Error: Invalid configuration values\n");
+    if (!page_table || !cfg) {
+        fprintf(stderr, "Error: NULL pointer passed\n");
         return;
     }
 
     // Calculate bits for page offset
     int pageOffsetBits = (int)log2(cfg->pageSize);
-    if (pageOffsetBits <= 0 || pageOffsetBits >= cfg->addressBits) {
-        fprintf(stderr, "Error: Invalid pageOffsetBits calculation\n");
-        return;
-    }
-
-    // Calculate bits per level
     int remainingBits = cfg->addressBits - pageOffsetBits;
-    int bitsPerLevel = remainingBits / cfg->numberOfLevels;
     
-    if (bitsPerLevel <= 0) {
-        fprintf(stderr, "Error: Invalid bitsPerLevel calculation\n");
+    // Verify configuration
+    if (pageOffsetBits <= 0 || remainingBits <= 0 || 
+        cfg->numberOfLevels <= 0 || cfg->pageTableSize <= 0) {
+        fprintf(stderr, "Error: Invalid configuration\n");
         return;
     }
 
-    pageTableLevel *current = root;
+    // Calculate bits per level (distribute evenly)
+    int bitsPerLevel = remainingBits / cfg->numberOfLevels;
+    int extraBits = remainingBits % cfg->numberOfLevels;
+    
+    pageTableLevel *current = page_table;
+    uint64_t mask = (1ULL << remainingBits) - 1;
+    uint64_t pageNumber = (virtual_address >> pageOffsetBits) & mask;
 
-    // Traverse each level of the page table
     for (int level = 0; level < cfg->numberOfLevels; level++) {
-        int shift = remainingBits - (bitsPerLevel * (level + 1));
-        int indexMask = (1 << bitsPerLevel) - 1;
-        int index = (virtual_address >> shift) & indexMask;
+        // Distribute extra bits to earlier levels
+        int levelBits = bitsPerLevel + (level < extraBits ? 1 : 0);
+        int shift = remainingBits - levelBits;
+        
+        uint64_t indexMask = (1ULL << levelBits) - 1;
+        int index = (pageNumber >> shift) & indexMask;
 
-        // Verify index is within bounds
-        if (index < 0 || index >= cfg->pageTableSize) {
-            fprintf(stderr, "Error: Invalid index calculation at level %d\n", level);
+        // Validate index
+        if (index >= cfg->pageTableSize) {
+            fprintf(stderr, "Error: Index %d exceeds table size %d at level %d\n",
+                   index, cfg->pageTableSize, level);
             return;
         }
 
@@ -93,26 +92,19 @@ void address_translation(uint64_t virtual_address, pageTableLevel *root, Config 
         if (!current->next[index]) {
             current->next[index] = create_page_table_level(cfg->pageTableSize);
             if (!current->next[index]) {
-                fprintf(stderr, "Error: Failed to allocate page table level\n");
+                fprintf(stderr, "Error: Allocation failed at level %d\n", level);
                 return;
             }
         }
 
         current = current->next[index];
+        remainingBits -= levelBits;
     }
 
-    // Calculate frame number
-    int pageNumber = (virtual_address >> pageOffsetBits);
+    // Store frame mapping
     int frameIndex = pageNumber % cfg->pageTableSize;
-    
-    // Validate frame index
-    if (frameIndex < 0 || frameIndex >= cfg->pageTableSize) {
-        fprintf(stderr, "Error: Invalid frame index calculation\n");
-        return;
-    }
-
-    // Assign frame (using pageNumber as the frame number for simulation)
     current->frames[frameIndex] = pageNumber;
-    printf("Virtual Address: 0x%lx -> Page: %d -> Frame: %d\n", 
+    
+    printf("Virtual Address: 0x%lx -> Page: %lu -> Frame: %d\n",
            virtual_address, pageNumber, current->frames[frameIndex]);
 }
