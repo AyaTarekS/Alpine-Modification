@@ -6,54 +6,74 @@
 #include "heriarcal_page.h"
 #include "replacement.h"
 
+void run_comprehensive_tests(Config *cfg, pageTableLevel *root, replace_t *replace) {
+    // Test cases covering all scenarios
+    uint64_t test_cases[] = {
+        // Basic functionality
+        0x0000,     // Zero address
+        0x1000,     // Page 1 
+        0x1FFF,     // Last byte of page 1
+        0x2000,     // Page 2
+        0x3FFF,     // Last byte of page 3
+        
+        // Edge cases
+        0x00000000, // Minimum 32-bit address
+        0xFFFFF000, // Maximum page-aligned address
+        0xDEADBEEF, // Memorable pattern
+        0xCAFEBABE, // Another pattern
+        
+        // Replacement stress tests
+        0x5000,     
+        0x6000,
+        0x7000,
+        0x5000,     // Should hit if replacement works
+        0x8000      // Should trigger eviction
+    };
+
+    printf("=== Starting Comprehensive Paging Tests ===\n");
+    for(int i = 0; i < sizeof(test_cases)/sizeof(test_cases[0]); i++) {
+        printf("\nTest %d: VA = 0x%lx\n", i+1, test_cases[i]);
+        address_translation(test_cases[i], root, cfg);
+        page_access(replace, test_cases[i] >> (int)log2(cfg->pageSize));
+    }
+    printf("\n=== All tests completed ===\n");
+}
+
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("Usage: %s config_file\n", argv[0]);
+    if(argc < 2) {
+        fprintf(stderr, "Usage: %s config_file\n", argv[0]);
         return 1;
     }
 
-    // Load configuration
+    // Load and validate configuration
     Config cfg;
-    load_config(argv[1], &cfg);
-
-    // Properly initialize root page table
-    pageTableLevel *root = create_page_table_level(cfg.pageTableSize);
-    if (!root) {
-        fprintf(stderr, "Failed to initialize root page table\n");
+    if(load_config(argv[1], &cfg) != 0) {
+        fprintf(stderr, "Failed to load config\n");
         return 1;
     }
 
-    // Init replacement algorithm
+    // Initialize page table with proper error checking
+    pageTableLevel *root = create_page_table_level(cfg.pageTableSize);
+    if(!root) {
+        fprintf(stderr, "Failed to initialize page table\n");
+        return 1;
+    }
+
+    // Initialize replacement algorithm
     replace_t replace;
     int buffer_size = (cfg.replaceAlgo == FIFO) ? cfg.FIFO_buffer_size : cfg.LRU_buffer_size;
-    replacement_init(&replace, cfg.replaceAlgo, buffer_size);
-
-    // Validate configuration
-    if (cfg.pageSize <= 0 || cfg.numberOfLevels <= 0 || cfg.addressBits <= 0) {
-        fprintf(stderr, "Invalid configuration values\n");
+    if(replacement_init(&replace, cfg.replaceAlgo, buffer_size) != 0) {
+        fprintf(stderr, "Failed to initialize replacement\n");
         free_page_table_level(root, cfg.pageTableSize);
         return 1;
     }
 
-    // Simulate translations with more reasonable addresses
-    uint64_t virtual_addresses[] = {
-        0x0,       // Minimum address
-        0xFFFFF,   // Larger address
-        0x1234,    // Non-page-aligned address
-    };
-    int count = sizeof(virtual_addresses) / sizeof(virtual_addresses[0]);
-
-    for (int i = 0; i < count; i++) {
-        printf("\nTranslating VA: 0x%lx\n", virtual_addresses[i]);
-        address_translation(virtual_addresses[i], root, &cfg);
-        uint64_t page_number = virtual_addresses[i] >> (int)log2(cfg.pageSize);
-        page_access(&replace, page_number);
-    }
+    // Run tests
+    run_comprehensive_tests(&cfg, root, &replace);
 
     // Cleanup
     replacement_free(&replace);
     free_page_table_level(root, cfg.pageTableSize);
-
+    
     return 0;
 }
-
