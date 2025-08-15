@@ -5,7 +5,7 @@
 
 typedef struct pageTableLevel {
     struct pageTableLevel **next;
-    int *frames[cfg->pageTableSize];
+    int *frames[Config->pageTableSize];
 } pageTableLevel;
 
 
@@ -15,3 +15,4 @@ void free_page_table_level(pageTableLevel *level, int size);
 
 
 void address_translation(uint64_t virtual_address, pageTableLevel *page_table, Config *cfg);
+
